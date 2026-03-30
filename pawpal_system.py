@@ -3,10 +3,12 @@ PawPal+ system classes.
 """
 
 from dataclasses import dataclass, field
+from datetime import date, timedelta
 from typing import Optional
 
 VALID_PRIORITIES = {"high", "medium", "low"}
 VALID_SPECIES = {"dog", "cat", "other"}
+VALID_RECURRENCES = {"daily", "weekly"}
 
 
 @dataclass
@@ -49,6 +51,12 @@ class Pet:
         self.tasks.append(task)
         self.tasks.sort(key=lambda t: t.duration_minutes)
 
+    def complete_task(self, task: "Task") -> None:
+        """Mark a task complete and auto-add the next occurrence if it recurs."""
+        next_occurrence = task.mark_complete()
+        if next_occurrence is not None:
+            self.add_task(next_occurrence)
+
     def filter_tasks(self, status: str) -> list["Task"]:
         """Return tasks matching the given status ('pending' or 'complete')."""
         return [t for t in self.tasks if t.status == status]
@@ -63,19 +71,43 @@ class Task:
     species: Optional[str] = None  # if set, task only applies to this species
     status: str = "pending"  # "pending" or "complete"
     required: bool = False  # if True, always included regardless of time pressure
+    recurrence: Optional[str] = None  # "daily", "weekly", or None for one-time tasks
+    due_date: Optional[date] = None  # next scheduled date for recurring tasks
 
     def __post_init__(self):
-        """Validate priority, duration_minutes, and species."""
+        """Validate priority, duration_minutes, species, and recurrence."""
         if self.priority not in VALID_PRIORITIES:
             raise ValueError(f"priority must be one of {VALID_PRIORITIES}, got '{self.priority}'")
         if self.duration_minutes <= 0:
             raise ValueError(f"duration_minutes must be positive, got {self.duration_minutes}")
         if self.species is not None and self.species not in VALID_SPECIES:
             raise ValueError(f"species must be one of {VALID_SPECIES}, got '{self.species}'")
+        if self.recurrence is not None and self.recurrence not in VALID_RECURRENCES:
+            raise ValueError(f"recurrence must be one of {VALID_RECURRENCES} or None, got '{self.recurrence}'")
 
-    def mark_complete(self) -> None:
-        """Mark this task as complete."""
+    def mark_complete(self) -> Optional["Task"]:
+        """Mark this task as complete and return a new pending instance if recurring.
+
+        The next due_date is calculated from the current due_date (or today if unset):
+          - "daily"  → current date + timedelta(days=1)
+          - "weekly" → current date + timedelta(weeks=1)
+        Using the existing due_date as the base prevents drift when catching up on
+        missed tasks — each occurrence stays anchored to the original schedule.
+        """
         self.status = "complete"
+        if self.recurrence in VALID_RECURRENCES:
+            base = self.due_date if self.due_date is not None else date.today()
+            delta = timedelta(days=1) if self.recurrence == "daily" else timedelta(weeks=1)
+            return Task(
+                title=self.title,
+                duration_minutes=self.duration_minutes,
+                priority=self.priority,
+                species=self.species,
+                required=self.required,
+                recurrence=self.recurrence,
+                due_date=base + delta,
+            )
+        return None
 
     @property
     def priority_value(self) -> int:
