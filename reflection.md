@@ -5,30 +5,43 @@
 **a. Initial design**
 
 - Briefly describe your initial UML design.  
-In my initial UML design, I structured the app around the main components needed to generate a pet care plan. I used the classes Owner, Pet, Task, Scheduler, Plan, and StreamlitUI.   
+  In my initial UML design, I structured the app around the main components needed to generate a pet care plan. I used the classes Owner, Pet, Task, Scheduler, Plan, and StreamlitUI.
 
-- What classes did you include, and what responsibilities did you assign to each?  
+- What classes did you include, and what responsibilities did you assign to each?
 
 ## a. Initial design
 
-The Owner class represents the user of the app and stores information such as the owner’s name and available time. The available time is an important constraint because it determines how many tasks can be included in the daily plan.  
+The Owner class represents the user of the app and stores information such as the owner’s name and available time. The available time is an important constraint because it determines how many tasks can be included in the daily plan.
 
-The Pet class stores basic information about the pet, such as its name and type. This helps provide context for the tasks being planned.  
+The Pet class stores basic information about the pet, such as its name and type. This helps provide context for the tasks being planned.
 
-The Task class represents individual pet care activities such as feeding, walking, grooming, or giving medicine. Each task includes a name, duration, and priority. These attributes allow the system to compare tasks and decide which ones are most important.  
+The Task class represents individual pet care activities such as feeding, walking, grooming, or giving medicine. Each task includes a name, duration, and priority. These attributes allow the system to compare tasks and decide which ones are most important.
 
-The Scheduler class is the core of the system. Its role is to take the list of tasks and the owner’s available time, then generate a daily plan by selecting the tasks that best fit within the time constraint. It also provides an explanation of why certain tasks were selected or skipped.  
+The Scheduler class is the core of the system. Its role is to take the list of tasks and the owner’s available time, then generate a daily plan by selecting the tasks that best fit within the time constraint. It also provides an explanation of why certain tasks were selected or skipped.
 
-The Plan class represents the final output of the app. It stores the selected tasks, total time used, and the explanation of the scheduling decisions.  
+The Plan class represents the final output of the app. It stores the selected tasks, total time used, and the explanation of the scheduling decisions.
 
-Finally, the StreamlitUI component represents the user interface. It is responsible for collecting input from the user and displaying the generated plan.  
+Finally, the StreamlitUI component represents the user interface. It is responsible for collecting input from the user and displaying the generated plan.
 
-I designed the system this way so that each component has a clear responsibility, making the system easier to understand, organize, and extend.   
+I designed the system this way so that each component has a clear responsibility, making the system easier to understand, organize, and extend.
 
 **b. Design changes**
 
 - Did your design change during implementation?
-- If yes, describe at least one change and why you made it.
+- If yes, describe at least one change and why you made it.  
+Yes, my design changed in several meaningful ways during implementation.  
+
+1. The Scheduler's algorithm changed from greedy to 0/1 knapsack.  
+   In the original skeleton, the scheduler sorted tasks by priority and duration, then greedily added tasks one by one until time ran out. This was simple but produced suboptimal plans — a single long high-priority task could block several shorter tasks that together would be more valuable. I replaced it with a dynamic programming knapsack algorithm that considers all combinations and selects the set of tasks with the highest total priority value that still fits within the available time. This was a more complex implementation but produces genuinely better schedules.  
+
+2. The Task class gained a species field.  
+   The original Task had no awareness of which pet it applied to. I added an optional species field so that tasks like "walk the dog" could be marked as dog-only and automatically excluded when the pet is a cat. The Scheduler now filters tasks by species eligibility before scheduling, and the explanation separately reports tasks excluded for species mismatch versus tasks skipped due to time.  
+
+3. The Plan class gained owner and pet fields.  
+   In the skeleton, Plan only stored selected_tasks, total_minutes_used, and explanation. The final implementation added owner and pet so that the plan is self-contained — it carries all the context needed to display or summarize the result without passing the owner and pet separately to the UI.  
+
+4. Input validation was added to Owner, Pet, and Task.  
+   The initial skeletons were plain dataclasses with no validation. I added **post_init** methods to enforce that available_minutes and duration_minutes are positive, that priority is one of {"high", "medium", "low"}, and that species is one of {"dog", "cat", "other"}. This prevents silent bugs caused by bad input reaching the scheduler.  
 
 ---
 
