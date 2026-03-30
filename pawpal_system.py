@@ -2,7 +2,7 @@
 PawPal+ system classes.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
 VALID_PRIORITIES = {"high", "medium", "low"}
@@ -14,6 +14,7 @@ class Owner:
     """Represents the pet owner and their scheduling constraints."""
     name: str
     available_minutes: int  # total time available today
+    pets: list["Pet"] = field(default_factory=list)
 
     def __post_init__(self):
         if self.available_minutes <= 0:
@@ -25,6 +26,7 @@ class Pet:
     """Represents the pet being cared for."""
     name: str
     species: str  # "dog", "cat", or "other"
+    tasks: list["Task"] = field(default_factory=list)
 
     def __post_init__(self):
         if self.species not in VALID_SPECIES:
@@ -65,10 +67,10 @@ class Plan:
 class Scheduler:
     """Selects and orders tasks to fit within the owner's available time."""
 
-    def __init__(self, owner: Owner, pet: Pet, tasks: list[Task]):
+    def __init__(self, owner: Owner, pet: Pet):
         self.owner = owner
         self.pet = pet
-        self.tasks = tasks
+        self.tasks = self.pet.tasks
 
     def generate_plan(self) -> Plan:
         """Build a daily plan using 0/1 knapsack to maximise priority within available time."""
@@ -146,13 +148,12 @@ class StreamlitUI:
     def __init__(self):
         self.owner: Optional[Owner] = None
         self.pet: Optional[Pet] = None
-        self.tasks: list[Task] = []
         self.plan: Optional[Plan] = None
 
     def build_and_run_scheduler(self) -> Optional[Plan]:
         """Create a Scheduler from current state, store and return the generated Plan."""
         if self.owner is None or self.pet is None:
             return None
-        scheduler = Scheduler(owner=self.owner, pet=self.pet, tasks=self.tasks)
+        scheduler = Scheduler(owner=self.owner, pet=self.pet)
         self.plan = scheduler.generate_plan()
         return self.plan
