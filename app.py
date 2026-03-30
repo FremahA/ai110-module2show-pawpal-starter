@@ -199,11 +199,16 @@ else:
             if schedule_target == "All pets":
                 total_tasks = sum(len(p.tasks) for p in pets_with_tasks)
                 all_plans = []
+                running_offset = 0
                 for pet in pets_with_tasks:
                     scheduler = Scheduler(owner=owner, pet=pet)
                     plan = scheduler.generate_plan()
+                    plan.start_offset = running_offset
                     allocated = int(owner.available_minutes * len(pet.tasks) / total_tasks)
                     all_plans.append(plan)
+                    slots = plan.get_time_slots()
+                    if slots:
+                        running_offset = slots[-1][2] + owner.buffer_minutes
                     st.markdown(f"### {pet.name} ({pet.species})")
                     _render_plan(plan, allocated_minutes=allocated)
 

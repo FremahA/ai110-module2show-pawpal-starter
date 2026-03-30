@@ -189,16 +189,17 @@ class Plan:
     selected_tasks: list[Task]
     total_minutes_used: int
     explanation: str
+    start_offset: int = 0  # minute offset so multi-pet schedules don't all start at 0
 
     def get_time_slots(self) -> list[tuple[Task, int, int]]:
         """Return (task, start_min, end_min) for each selected task, in schedule order.
 
-        Tasks are laid out sequentially starting at minute 0, with
+        Tasks are laid out sequentially starting at start_offset, with
         owner.buffer_minutes inserted between consecutive tasks.
         """
         slots: list[tuple[Task, int, int]] = []
         buf = self.owner.buffer_minutes
-        current = 0
+        current = self.start_offset
         for task in self.selected_tasks:
             end = current + task.duration_minutes
             slots.append((task, current, end))
