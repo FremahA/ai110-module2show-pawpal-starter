@@ -17,6 +17,7 @@ class Owner:
     pets: list["Pet"] = field(default_factory=list)
 
     def __post_init__(self):
+        """Validate that available_minutes is positive."""
         if self.available_minutes <= 0:
             raise ValueError(f"available_minutes must be positive, got {self.available_minutes}")
 
@@ -29,6 +30,7 @@ class Pet:
     tasks: list["Task"] = field(default_factory=list)
 
     def __post_init__(self):
+        """Validate that species is one of the allowed values."""
         if self.species not in VALID_SPECIES:
             raise ValueError(f"species must be one of {VALID_SPECIES}, got '{self.species}'")
 
@@ -47,6 +49,7 @@ class Task:
     status: str = "pending"  # "pending" or "complete"
 
     def __post_init__(self):
+        """Validate priority, duration_minutes, and species."""
         if self.priority not in VALID_PRIORITIES:
             raise ValueError(f"priority must be one of {VALID_PRIORITIES}, got '{self.priority}'")
         if self.duration_minutes <= 0:
@@ -60,6 +63,7 @@ class Task:
 
     @property
     def priority_value(self) -> int:
+        """Return a numeric weight for the priority: high=3, medium=2, low=1."""
         return {"high": 3, "medium": 2, "low": 1}[self.priority]
 
 
@@ -77,6 +81,7 @@ class Scheduler:
     """Selects and orders tasks to fit within the owner's available time."""
 
     def __init__(self, owner: Owner, pet: Pet):
+        """Store the owner and pet, and alias the pet's task list."""
         self.owner = owner
         self.pet = pet
         self.tasks = self.pet.tasks
@@ -133,6 +138,7 @@ class Scheduler:
         ineligible: list[Task],
         time_used: int,
     ) -> str:
+        """Build a human-readable summary of selected, skipped, and excluded tasks."""
         lines = [
             f"Plan for {self.pet.name} ({self.pet.species}) — "
             f"{self.owner.name} has {self.owner.available_minutes} min available.",
@@ -155,6 +161,7 @@ class StreamlitUI:
     """Thin wrapper that connects the system classes to the Streamlit frontend."""
 
     def __init__(self):
+        """Initialize with no owner, pet, or plan set."""
         self.owner: Optional[Owner] = None
         self.pet: Optional[Pet] = None
         self.plan: Optional[Plan] = None
