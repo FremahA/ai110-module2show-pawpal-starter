@@ -3,10 +3,35 @@ from pawpal_system import Owner, Pet, Task, Scheduler
 
 PRIORITY_ORDER = {"high": 0, "medium": 1, "low": 2}
 
+_SPECIES_EMOJI = {"dog": "🐕", "cat": "🐱", "other": "🐾"}
+
+_TASK_KEYWORDS = [
+    ({"walk", "stroll", "run", "jog"},          "🦮"),
+    ({"feed", "food", "meal", "treat", "water"}, "🍽️"),
+    ({"groom", "brush", "bath", "wash", "nail"}, "✂️"),
+    ({"play", "fetch", "toy", "game"},           "🎾"),
+    ({"medicine", "med", "pill", "dose", "vet", "checkup"}, "💊"),
+    ({"litter", "clean", "scoop", "poop"},       "🧹"),
+    ({"train", "training", "sit", "stay"},       "🎓"),
+    ({"cuddle", "snuggle", "pet", "love"},       "🫶"),
+]
+
+
+def _task_emoji(title: str) -> str:
+    lower = title.lower()
+    for keywords, emoji in _TASK_KEYWORDS:
+        if any(kw in lower for kw in keywords):
+            return emoji
+    return "📋"
+
 
 def _priority_badge(priority: str) -> str:
     icons = {"high": "🔴", "medium": "🟡", "low": "🟢"}
     return f"{icons.get(priority, '')} {priority}"
+
+
+def _status_badge(status: str) -> str:
+    return "✅ complete" if status == "complete" else "⏳ pending"
 
 
 def _render_plan(plan, allocated_minutes: int | None = None) -> None:
@@ -22,12 +47,12 @@ def _render_plan(plan, allocated_minutes: int | None = None) -> None:
     if slots:
         st.table([
             {
-                "start (min)": start,
-                "end (min)": end,
+                "": _task_emoji(t.title),
                 "task": t.title,
+                "time": f"{start}–{end} min",
+                "duration": f"{t.duration_minutes} min",
                 "priority": _priority_badge(t.priority),
-                "duration (min)": t.duration_minutes,
-                "required": "✓" if t.required else "",
+                "required": "🔒" if t.required else "",
             }
             for t, start, end in slots
         ])
@@ -45,20 +70,14 @@ st.title("🐾 PawPal+")
 
 st.markdown(
     """
-Welcome to the PawPal+ starter app.
+### Your pet's day, perfectly planned! 🐕🐱
 
+Tails are wagging and paws are ready — let's build the ultimate care schedule for your furry (or not-so-furry) family members.
 
+Tell us about your pets, drop in their tasks, and PawPal+ will figure out the best way to fit everything into your day. No more forgotten walks or missed feedings! 🦴🐟
 """
 )
 
-with st.expander("Scenario", expanded=True):
-    st.markdown(
-        """
-**PawPal+** is a pet care planning assistant. It helps a pet owner plan care tasks
-for their pet(s) based on constraints like time, priority, and preferences.
-
-"""
-    )
 
 
 
@@ -67,7 +86,7 @@ st.divider()
 # ---------------------------------------------------------------------------
 # Step 1 — Owner
 # ---------------------------------------------------------------------------
-st.subheader("1. Owner")
+st.subheader("👤 Who's the Caretaker?")
 
 owner_name = st.text_input("Owner name", value="Jordan")
 col_time, col_buf = st.columns(2)
@@ -95,7 +114,7 @@ st.divider()
 # ---------------------------------------------------------------------------
 # Step 2 — Pets
 # ---------------------------------------------------------------------------
-st.subheader("2. Pets")
+st.subheader("🐾 Meet the Pets")
 
 if "owner" not in st.session_state:
     st.info("Create an owner first.")
@@ -113,7 +132,12 @@ else:
     if st.session_state.owner.pets:
         st.write("Your pets:")
         st.table([
-            {"name": p.name, "species": p.species, "tasks": len(p.tasks)}
+            {
+                "": _SPECIES_EMOJI.get(p.species, "🐾"),
+                "name": p.name,
+                "species": p.species,
+                "tasks": len(p.tasks),
+            }
             for p in st.session_state.owner.pets
         ])
     else:
@@ -124,7 +148,7 @@ st.divider()
 # ---------------------------------------------------------------------------
 # Step 3 — Tasks
 # ---------------------------------------------------------------------------
-st.subheader("3. Tasks")
+st.subheader("📋 What Needs to Get Done?")
 
 if "owner" not in st.session_state or not st.session_state.owner.pets:
     st.info("Add at least one pet first.")
@@ -166,15 +190,17 @@ else:
 
     for pet in pets:
         if pet.tasks:
-            st.markdown(f"**{pet.name}** ({pet.species})")
+            icon = _SPECIES_EMOJI.get(pet.species, "🐾")
+            st.markdown(f"**{icon} {pet.name}** ({pet.species})")
             sorted_tasks = sorted(pet.tasks, key=lambda t: (PRIORITY_ORDER[t.priority], t.duration_minutes))
             st.table([
                 {
+                    "": _task_emoji(t.title),
                     "title": t.title,
                     "priority": _priority_badge(t.priority),
-                    "duration (min)": t.duration_minutes,
-                    "required": "✓" if t.required else "",
-                    "status": t.status,
+                    "duration": f"{t.duration_minutes} min",
+                    "required": "🔒" if t.required else "",
+                    "status": _status_badge(t.status),
                 }
                 for t in sorted_tasks
             ])
@@ -184,7 +210,7 @@ st.divider()
 # ---------------------------------------------------------------------------
 # Step 4 — Generate schedule
 # ---------------------------------------------------------------------------
-st.subheader("4. Build Schedule")
+st.subheader("🗓️ Let's Build the Perfect Day!")
 
 if "owner" not in st.session_state or not st.session_state.owner.pets:
     st.info("Add at least one pet with tasks first.")
@@ -202,6 +228,9 @@ else:
 
         if st.button("Generate schedule"):
             owner = st.session_state.owner
+            for pet in owner.pets:
+                for task in pet.tasks:
+                    task.status = "pending"
 
             if schedule_target == "All pets":
                 total_tasks = sum(len(p.tasks) for p in pets_with_tasks)
@@ -212,30 +241,13 @@ else:
                     plan = scheduler.generate_plan()
                     plan.start_offset = running_offset
                     allocated = int(owner.available_minutes * len(pet.tasks) / total_tasks)
-                    all_plans.append(plan)
+                    all_plans.append((plan, allocated))
                     slots = plan.get_time_slots()
                     if slots:
                         running_offset = slots[-1][2] + owner.buffer_minutes
-                    st.markdown(f"### {pet.name} ({pet.species})")
-                    _render_plan(plan, allocated_minutes=allocated)
-
-                # Surface any cross-pet time-slot conflicts
-                conflicts = Scheduler.detect_conflicts(*all_plans)
-                if conflicts:
-                    st.markdown("---")
-                    st.markdown("#### Scheduling conflicts detected")
-                    for msg in conflicts:
-                        # Strip leading "WARNING: " prefix for cleaner display
-                        clean = msg.removeprefix("WARNING: ")
-                        st.warning(
-                            f"**Overlap:** {clean}\n\n"
-                            "_Two pets have tasks scheduled at the same time. "
-                            "Consider staggering start times or reducing one task's duration._"
-                        )
-                else:
-                    st.success("No scheduling conflicts across pets.")
+                conflicts = Scheduler.detect_conflicts(*[p for p, _ in all_plans])
+                st.session_state.schedule = {"type": "all", "plans": all_plans, "conflicts": conflicts}
             else:
-                # Single pet — give it the full available_minutes
                 pet = next(p for p in pets_with_tasks if p.name == schedule_target)
                 single_pet_owner = Owner(
                     owner.name,
@@ -245,5 +257,57 @@ else:
                 )
                 scheduler = Scheduler(owner=single_pet_owner, pet=pet)
                 plan = scheduler.generate_plan()
-                st.success(f"Schedule generated for **{pet.name}**.")
-                _render_plan(plan)
+                st.session_state.schedule = {"type": "single", "pet": pet, "plan": plan}
+
+        # Always render the saved schedule
+        if "schedule" in st.session_state:
+            sched = st.session_state.schedule
+            if sched["type"] == "all":
+                for plan, allocated in sched["plans"]:
+                    st.markdown(f"### {_SPECIES_EMOJI.get(plan.pet.species, '🐾')} {plan.pet.name} ({plan.pet.species})")
+                    _render_plan(plan, allocated_minutes=allocated)
+                if sched["conflicts"]:
+                    st.markdown("---")
+                    st.markdown("#### Scheduling conflicts detected")
+                    for msg in sched["conflicts"]:
+                        clean = msg.removeprefix("WARNING: ")
+                        st.warning(
+                            f"**Overlap:** {clean}\n\n"
+                            "_Two pets have tasks scheduled at the same time. "
+                            "Consider staggering start times or reducing one task's duration._"
+                        )
+                else:
+                    st.success("No scheduling conflicts across pets.")
+            else:
+                st.success(f"Schedule generated for **{sched['pet'].name}**.")
+                _render_plan(sched["plan"])
+
+st.divider()
+
+# ---------------------------------------------------------------------------
+# Step 5 — Mark tasks complete
+# ---------------------------------------------------------------------------
+st.subheader("☑️ Done for the Day?")
+
+if "owner" not in st.session_state or not st.session_state.owner.pets:
+    st.info("Add pets and generate a schedule first.")
+else:
+    all_pending = [
+        (pet, task)
+        for pet in st.session_state.owner.pets
+        for task in pet.tasks
+        if task.status == "pending"
+    ]
+    if not all_pending:
+        st.success("🎉 All tasks are complete! Great job taking care of your pets today!")
+    else:
+        options = {
+            f"{_SPECIES_EMOJI.get(pet.species, '🐾')} {pet.name} — {_task_emoji(task.title)} {task.title}": (pet, task)
+            for pet, task in all_pending
+        }
+        chosen = st.selectbox("Which task did you finish?", list(options.keys()), key="complete_task_select")
+        if st.button("Mark complete ✅"):
+            chosen_pet, chosen_task = options[chosen]
+            chosen_pet.complete_task(chosen_task)
+            st.success(f"✅ '{chosen_task.title}' marked complete for {chosen_pet.name}!")
+            st.rerun()

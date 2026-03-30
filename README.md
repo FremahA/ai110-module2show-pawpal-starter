@@ -1,36 +1,61 @@
-# PawPal+ 
+# PawPal+ 🐾
 
- **PawPal+**, a Streamlit app that helps a pet owner plan care tasks for their pet.
+**PawPal+** is a Streamlit app that helps pet owners plan daily care tasks for their pets — built around smart scheduling, a friendly UI, and support for multiple pets.
 
+## How It Works
 
+PawPal+ walks you through five steps:
 
-## Features
-
-- **Sorting by duration** — tasks are kept sorted shortest-first after every add or completion, so the task list is always in a predictable order.
-- **Priority-based ordering** — selected optional tasks are placed into the plan from highest to lowest priority, with shortest duration breaking ties.
-- **0/1 Knapsack optimization** — the scheduler uses bottom-up dynamic programming to find the combination of optional tasks with the highest total priority value that fits within the available time.
-- **Required task guarantee** — tasks marked required are always included in the plan regardless of time pressure; optional tasks fill whatever capacity remains.
-- **Buffer time between tasks** — an owner-level buffer is inserted between consecutive tasks and counted against capacity during scheduling.
-- **Species filtering** — tasks can be restricted to a specific species; ineligible tasks are excluded before scheduling and reported separately in the plan explanation.
-- **Daily and weekly recurrence** — completing a recurring task automatically spawns the next occurrence anchored to the original due date to prevent schedule drift.
-- **Proportional multi-pet time allocation** — when an owner has multiple pets, available minutes are split proportionally by each pet's pending-task count.
-- **Sequential time-slot layout** — the plan produces start and end times for each task laid out from minute 0 with buffer gaps, used by both the UI and conflict detection.
-- **Cross-plan conflict detection** — checks all pairs of time slots across multiple pet plans for overlaps and returns human-readable warnings instead of crashing on bad input.
+1. **Set up the owner** — enter your name, how many minutes you have today, and a buffer gap between tasks.
+2. **Add your pets** — dog, cat, or other. Each pet gets their own task list.
+3. **Add tasks** — set the title, duration, priority, and whether a task is required. Duplicate pending tasks are blocked automatically.
+4. **Generate a schedule** — the scheduler picks the best combination of tasks that fits your time budget. Required tasks are always included. Multi-pet schedules are staggered so they never overlap.
+5. **Mark tasks complete** — after running your schedule, check off tasks as you finish them. The section resets each time you generate a new schedule.
 
 ## Smarter Scheduling
 
-The scheduler goes beyond a simple greedy approach. Rather than picking tasks by priority until time runs out, it uses a 0/1 knapsack algorithm to find the highest-value combination of tasks that fits the available time. Required tasks are always guaranteed a spot, and whatever time remains is offered to optional tasks. When an owner has multiple pets, time is divided proportionally so no pet is shortchanged. The system also handles recurring tasks, species restrictions, buffer gaps between activities, and can detect scheduling conflicts across multiple pet plans.
+Rather than picking tasks by priority until time runs out, PawPal+ uses a **0/1 knapsack algorithm** to find the highest-value combination of tasks that fits the available time. Required tasks are guaranteed a spot first, and optional tasks fill whatever capacity remains. When an owner has multiple pets, time is divided proportionally so no pet is shortchanged, and each pet's schedule is staggered on a shared timeline to prevent false conflicts.
 
-## Getting started
+## Features
 
-### Setup
+- **0/1 Knapsack optimization** — finds the best combination of optional tasks by priority value, not just the first ones that fit.
+- **Required task guarantee** — tasks marked required are always scheduled, even if they exceed the budget.
+- **Duplicate task prevention** — adding the same pending task twice shows a warning and blocks the duplicate.
+- **Staggered multi-pet scheduling** — each pet's plan starts after the previous one ends, eliminating false time-slot conflicts.
+- **Persistent schedule display** — the generated schedule stays visible as you interact with other sections of the app.
+- **Mark tasks complete** — a dedicated end-of-day section lets you check off finished tasks; resets on every new schedule generation.
+- **Species filtering** — tasks can be restricted to a specific species and are excluded automatically for other pets.
+- **Buffer time between tasks** — configurable rest/travel time inserted between consecutive tasks.
+- **Recurring tasks** — completing a daily or weekly task automatically creates the next occurrence.
+- **Cross-plan conflict detection** — flags overlapping time slots across pet plans with human-readable warnings.
+- **Visual indicators** — task-type emojis, species emojis, priority color badges (🔴🟡🟢), required lock icons 🔒, and status badges (⏳ / ✅).
+
+## Demo
+
+**Owner & Pets Setup**
+
+<a href="screenshots/owner_pets.png" target="_blank"><img src='screenshots/owner_pets.png' title='Owner & Pets Setup' width='600' alt='Owner and Pets Setup' class='center-block' /></a>
+
+**Task List**
+
+<a href="screenshots/tasks.png" target="_blank"><img src='screenshots/tasks.png' title='Task List' width='600' alt='Task List' class='center-block' /></a>
+
+**Generated Schedule**
+
+<a href="screenshots/schedule.png" target="_blank"><img src='screenshots/schedule.png' title='Generated Schedule' width='600' alt='Generated Schedule' class='center-block' /></a>
+
+**Mark Tasks Complete**
+
+<a href="screenshots/complete.png" target="_blank"><img src='screenshots/complete.png' title='Mark Tasks Complete' width='600' alt='Mark Tasks Complete' class='center-block' /></a>
+
+## Getting Started
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
+streamlit run app.py
 ```
-
 
 ## Testing PawPal+
 
@@ -53,5 +78,5 @@ The suite contains 21 tests organized into four areas:
 
 ### Confidence Level
 
-**4 / 5 stars**
+**5 stars**
 
