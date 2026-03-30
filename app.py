@@ -149,13 +149,20 @@ else:
         )
 
     if st.button("Add task"):
-        task = Task(
-            title=task_title,
-            duration_minutes=int(duration),
-            priority=priority,
-            required=required,
+        duplicate = any(
+            t.title.lower() == task_title.strip().lower() and t.status == "pending"
+            for t in target_pet.tasks
         )
-        target_pet.add_task(task)
+        if duplicate:
+            st.warning(f"'{task_title}' is already a pending task for {target_pet.name}. Skipping.")
+        else:
+            task = Task(
+                title=task_title,
+                duration_minutes=int(duration),
+                priority=priority,
+                required=required,
+            )
+            target_pet.add_task(task)
 
     for pet in pets:
         if pet.tasks:
