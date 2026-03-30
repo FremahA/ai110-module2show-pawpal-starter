@@ -14,12 +14,15 @@ class Owner:
     """Represents the pet owner and their scheduling constraints."""
     name: str
     available_minutes: int  # total time available today
+    buffer_minutes: int = 0  # rest/travel time to insert between tasks
     pets: list["Pet"] = field(default_factory=list)
 
     def __post_init__(self):
-        """Validate that available_minutes is positive."""
+        """Validate that available_minutes is positive and buffer_minutes is non-negative."""
         if self.available_minutes <= 0:
             raise ValueError(f"available_minutes must be positive, got {self.available_minutes}")
+        if self.buffer_minutes < 0:
+            raise ValueError(f"buffer_minutes must be non-negative, got {self.buffer_minutes}")
 
 
 @dataclass
@@ -47,6 +50,7 @@ class Task:
     priority: str = "medium"  # "high", "medium", or "low"
     species: Optional[str] = None  # if set, task only applies to this species
     status: str = "pending"  # "pending" or "complete"
+    required: bool = False  # if True, always included regardless of time pressure
 
     def __post_init__(self):
         """Validate priority, duration_minutes, and species."""
@@ -87,15 +91,36 @@ class Scheduler:
         self.tasks = self.pet.tasks
 
     def generate_plan(self) -> Plan:
-        """Build a daily plan using 0/1 knapsack to maximise priority within available time."""
+        """Build a daily plan: required tasks are always included; optional tasks fill remaining time via knapsack."""
         eligible = [t for t in self.tasks if t.species is None or t.species == self.pet.species]
         ineligible = [t for t in self.tasks if t.species is not None and t.species != self.pet.species]
 
-        selected = self._knapsack_select(eligible)
-        selected_ids = {id(t) for t in selected}
-        skipped = [t for t in eligible if id(t) not in selected_ids]
+        required = [t for t in eligible if t.required]
+        optional = [t for t in eligible if not t.required]
+
+        buf = self.owner.buffer_minutes
+        capacity = self._compute_pet_capacity()
+
+        # Reserve time for required tasks (duration + buffer slot after each)
+        required_cost = sum(t.duration_minutes + buf for t in required)
+        remaining = capacity - required_cost
+
+        if remaining < 0:
+            # Required tasks alone exceed capacity — include them all, skip optional
+            selected_optional: list[Task] = []
+            skipped = optional
+        else:
+            selected_optional = self._knapsack_select(optional, remaining)
+            selected_ids = {id(t) for t in selected_optional}
+            skipped = [t for t in optional if id(t) not in selected_ids]
+
+        # Required tasks first, then optional sorted by priority then duration
+        selected = required + sorted(selected_optional, key=lambda t: (-t.priority_value, t.duration_minutes))
 
         time_used = sum(t.duration_minutes for t in selected)
+        if len(selected) > 1:
+            time_used += buf * (len(selected) - 1)
+
         explanation = self._build_explanation(selected, skipped, ineligible, time_used)
         return Plan(
             owner=self.owner,
@@ -105,15 +130,33 @@ class Scheduler:
             explanation=explanation,
         )
 
-    def _knapsack_select(self, tasks: list[Task]) -> list[Task]:
-        """0/1 knapsack DP: maximise total priority value within available_minutes."""
-        capacity = self.owner.available_minutes
+    def _compute_pet_capacity(self) -> int:
+        """Allocate available_minutes proportionally across owner's pets by pending-task count."""
+        pets = self.owner.pets
+        if len(pets) <= 1:
+            return self.owner.available_minutes
+        total_tasks = sum(len(p.tasks) for p in pets)
+        if total_tasks == 0:
+            return self.owner.available_minutes // len(pets)
+        share = len(self.pet.tasks) / total_tasks
+        return max(1, int(self.owner.available_minutes * share))
+
+    def _knapsack_select(self, tasks: list[Task], capacity: int) -> list[Task]:
+        """0/1 knapsack DP: maximise total priority within capacity.
+
+        Pre-sorts tasks so higher-priority, shorter tasks land at higher indices.
+        Backtracking (n→1) then naturally picks them first on ties (#1).
+        Each task's DP weight includes a buffer slot after it (#8).
+        """
+        # Low-priority long tasks first → high-priority short tasks last (higher index)
+        tasks = sorted(tasks, key=lambda t: (t.priority_value, -t.duration_minutes))
+
+        buf = self.owner.buffer_minutes
         n = len(tasks)
-        # dp[i][c] = best priority value using the first i tasks with c minutes remaining
         dp = [[0] * (capacity + 1) for _ in range(n + 1)]
 
         for i, task in enumerate(tasks, 1):
-            w = task.duration_minutes
+            w = task.duration_minutes + buf  # duration + buffer after this task
             v = task.priority_value
             for c in range(capacity + 1):
                 if w > c:
@@ -127,9 +170,9 @@ class Scheduler:
         for i in range(n, 0, -1):
             if dp[i][c] != dp[i - 1][c]:
                 selected.append(tasks[i - 1])
-                c -= tasks[i - 1].duration_minutes
+                c -= tasks[i - 1].duration_minutes + buf
 
-        return sorted(selected, key=lambda t: (-t.priority_value, t.duration_minutes))
+        return selected
 
     def _build_explanation(
         self,
